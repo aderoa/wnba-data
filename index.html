@@ -277,7 +277,7 @@
   <header>
     <h1>WNBA Clutch Leaders</h1>
     <p class="subtitle">Who shows up when the game is close. Source: stats.wnba.com via nba_api.</p>
-    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × ((1.25·W - 0.8·L - PM/GP) / GP)</p>
+    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × (0.8·L + 1.25·W - PM/GP) / GP</p>
   </header>
 
   <div class="controls">
@@ -331,6 +331,7 @@
             <th data-col="OFF_RATING" data-type="num" title="Offensive Rating (pts per 100 poss)">OffRtg</th>
             <th data-col="PLUS_MINUS" data-type="num">+/-</th>
             <th data-col="clutchIndex" data-type="num" class="sorted desc">Clutch Idx</th>
+            <th data-col="clutchIndexPerGame" data-type="num" title="Clutch Index divided by Clutch GP">Idx / G</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -577,7 +578,10 @@ function buildRow(b, a) {
   const w = num(b.W), l = num(b.L), gp = num(b.GP);
   const pm = num(b.PLUS_MINUS);
 
-  // Clutch Index (per formula, locked in)
+  // Clutch Index (matches the original Google Sheets formula):
+  //   =((PTS + 0.4*FGM - 0.7*FGA + 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB
+  //     + STL + 0.7*BLK + 0.6*AST - 0.4*PF - TOV))
+  //   * ((L*0.8) + (W*1.25) - (PM/GP)) / GP
   const boxPart =
       pts
       + 0.4 * fgm
@@ -591,9 +595,10 @@ function buildRow(b, a) {
       - 0.4 * pf
       - tov;
   const multiplier = gp > 0
-    ? ((1.25 * w) - (0.8 * l) - (pm / gp)) / gp
+    ? ((0.8 * l) + (1.25 * w) - (pm / gp)) / gp
     : 0;
   const clutchIndex = boxPart * multiplier;
+  const clutchIndexPerGame = gp > 0 ? clutchIndex / gp : 0;
 
   return {
     PLAYER_ID: b.PLAYER_ID,
@@ -611,6 +616,7 @@ function buildRow(b, a) {
     OFF_RATING: num(a.OFF_RATING),
     PLUS_MINUS: pm,
     clutchIndex: clutchIndex,
+    clutchIndexPerGame: clutchIndexPerGame,
   };
 }
 
@@ -678,10 +684,11 @@ function render() {
       <td>${fmt(r.OFF_RATING, 'pct1')}</td>
       <td>${fmt(r.PLUS_MINUS, 'plusminus')}</td>
       <td class="score-cell">${fmt(r.clutchIndex, 'dec2')}</td>
+      <td class="score-cell">${fmt(r.clutchIndexPerGame, 'dec2')}</td>
     </tr>`;
   });
   if (!qualified.length) {
-    html = `<tr><td colspan="15" class="status">No players meet the minimum MIN threshold. Lower it with the slider.</td></tr>`;
+    html = `<tr><td colspan="16" class="status">No players meet the minimum MIN threshold. Lower it with the slider.</td></tr>`;
   }
   tbody.innerHTML = html;
 
