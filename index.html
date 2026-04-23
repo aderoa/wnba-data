@@ -286,6 +286,13 @@
       <select id="season-select"></select>
     </div>
     <div class="control-group">
+      <label class="control-label">Phase</label>
+      <div class="window-group" id="phase-group">
+        <button class="window-btn active" data-phase="rs">Regular Season</button>
+        <button class="window-btn" data-phase="po">Playoffs</button>
+      </div>
+    </div>
+    <div class="control-group">
       <label class="control-label">Clutch Window</label>
       <div class="window-group" id="window-group">
         <button class="window-btn active" data-window="5m">Last 5 min</button>
@@ -332,34 +339,51 @@
   </div>
 
   <footer>
-    Clutch = game within 5 pts, in the final N minutes (and overtime). Data from stats.wnba.com.
+    Clutch = game within 5 pts, in the final N minutes (and overtime). Regular Season and Playoffs separately. Data from stats.wnba.com.
   </footer>
 </div>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────
 const DATA_BASE_URL = 'https://aderoa.github.io/wnba-data/';
+// File naming: base.csv is Regular Season; _po.csv is Playoffs
 const DATASETS = {
-  '5m': { base: '_merged_clutch_5m_base.csv', adv: '_merged_clutch_5m_adv.csv' },
-  '3m': { base: '_merged_clutch_3m_base.csv', adv: '_merged_clutch_3m_adv.csv' },
-  '1m': { base: '_merged_clutch_1m_base.csv', adv: '_merged_clutch_1m_adv.csv' },
+  rs: {
+    '5m': { base: '_merged_clutch_5m_base.csv',    adv: '_merged_clutch_5m_adv.csv'    },
+    '3m': { base: '_merged_clutch_3m_base.csv',    adv: '_merged_clutch_3m_adv.csv'    },
+    '1m': { base: '_merged_clutch_1m_base.csv',    adv: '_merged_clutch_1m_adv.csv'    },
+  },
+  po: {
+    '5m': { base: '_merged_clutch_5m_base_po.csv', adv: '_merged_clutch_5m_adv_po.csv' },
+    '3m': { base: '_merged_clutch_3m_base_po.csv', adv: '_merged_clutch_3m_adv_po.csv' },
+    '1m': { base: '_merged_clutch_1m_base_po.csv', adv: '_merged_clutch_1m_adv_po.csv' },
+  },
 };
-// Threshold defaults & slider ranges per clutch window (minutes).
-// Smaller windows have smaller samples, so lower defaults.
+// Threshold defaults & slider ranges per (phase, window).
+// Playoffs are much shorter — 2-8 games per team max — so defaults and ranges
+// need to be scaled down dramatically vs. Regular Season.
 const THRESHOLDS = {
-  '5m': { min: 0, max: 200, default: 30 },
-  '3m': { min: 0, max: 100, default: 15 },
-  '1m': { min: 0,  max: 40,  default: 8  },
+  rs: {
+    '5m': { min: 0, max: 200, default: 30 },
+    '3m': { min: 0, max: 100, default: 15 },
+    '1m': { min: 0, max: 40,  default: 8  },
+  },
+  po: {
+    '5m': { min: 0, max: 60,  default: 8  },
+    '3m': { min: 0, max: 30,  default: 4  },
+    '1m': { min: 0, max: 15,  default: 2  },
+  },
 };
 
 // State
-let baseRows = [];   // current merged base rows
-let advRows = [];    // current merged advanced rows (joined by PLAYER_ID+SEASON)
+let baseRows = [];
+let advRows = [];
+let currentPhase = 'rs';        // 'rs' | 'po'
 let currentWindow = '5m';
-let currentSeason = 'latest';   // 'latest' | season string | 'all-time'
+let currentSeason = 'latest';
 let currentThreshold = 30;
 let currentSort = { col: 'clutchIndex', dir: 'desc' };
-const dataCache = {};  // { '5m': { base: [...], adv: [...] } }
+const dataCache = {};  // { 'rs|5m': { base: [...], adv: [...] } }
 
 // ── CSV PARSING ───────────────────────────────────────────────
 function parseCSV(text) {
@@ -396,34 +420,45 @@ function parseRow(line) {
 }
 
 // ── DATA LOADING ──────────────────────────────────────────────
-async function loadWindow(winKey) {
-  if (dataCache[winKey]) return dataCache[winKey];
-  const files = DATASETS[winKey];
+async function loadData(phase, winKey) {
+  const cacheKey = phase + '|' + winKey;
+  if (dataCache[cacheKey]) return dataCache[cacheKey];
+  const files = DATASETS[phase][winKey];
   const [baseText, advText] = await Promise.all([
     fetch(DATA_BASE_URL + files.base).then(r => { if (!r.ok) throw new Error(files.base + ': ' + r.status); return r.text(); }),
     fetch(DATA_BASE_URL + files.adv ).then(r => { if (!r.ok) throw new Error(files.adv  + ': ' + r.status); return r.text(); }),
   ]);
   const base = parseCSV(baseText).rows;
   const adv  = parseCSV(advText).rows;
-  dataCache[winKey] = { base, adv };
-  return dataCache[winKey];
+  dataCache[cacheKey] = { base, adv };
+  return dataCache[cacheKey];
 }
 
-// Populate season dropdown from available data
-function populateSeasonSelect(rows) {
+// Populate season dropdown from available data. Called on every phase/window
+// switch because the set of available seasons may differ (e.g., advanced
+// metrics start later, playoffs have different coverage).
+function repopulateSeasonSelect(rows, preserveSeason) {
   const seasons = [...new Set(rows.map(r => r.SEASON_LABEL).filter(Boolean))].sort();
   const sel = document.getElementById('season-select');
-  if (sel.children.length > 0) return;  // already populated
-  // Default = most recent season
+  if (!seasons.length) {
+    sel.innerHTML = '<option>No data available</option>';
+    currentSeason = null;
+    return;
+  }
   const latest = seasons[seasons.length - 1];
-  const opts = [
-    `<option value="${latest}" selected>${latest} (latest)</option>`,
-    `<option value="__ALLTIME__">All-time (career totals)</option>`,
-    `<option disabled>──────────</option>`,
-    ...seasons.slice().reverse().map(s => s === latest ? '' : `<option value="${s}">${s}</option>`).filter(Boolean),
-  ];
+  const chosen = preserveSeason && seasons.includes(preserveSeason) ? preserveSeason
+               : (preserveSeason === '__ALLTIME__' ? '__ALLTIME__' : latest);
+
+  const opts = [];
+  opts.push(`<option value="${latest}"${chosen === latest ? ' selected' : ''}>${latest} (latest)</option>`);
+  opts.push(`<option value="__ALLTIME__"${chosen === '__ALLTIME__' ? ' selected' : ''}>All-time (career totals)</option>`);
+  opts.push(`<option disabled>──────────</option>`);
+  for (const s of seasons.slice().reverse()) {
+    if (s === latest) continue;
+    opts.push(`<option value="${s}"${chosen === s ? ' selected' : ''}>${s}</option>`);
+  }
   sel.innerHTML = opts.join('');
-  currentSeason = latest;
+  currentSeason = chosen;
 }
 
 // ── AGGREGATION ───────────────────────────────────────────────
@@ -664,13 +699,15 @@ function escapeHtml(s) {
 }
 
 // ── CONTROLS WIRING ───────────────────────────────────────────
-async function switchWindow(win) {
-  currentWindow = win;
-  document.querySelectorAll('.window-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.window === win));
+async function switchData() {
+  // Apply phase/window UI state
+  document.querySelectorAll('[data-window]').forEach(b =>
+    b.classList.toggle('active', b.dataset.window === currentWindow));
+  document.querySelectorAll('[data-phase]').forEach(b =>
+    b.classList.toggle('active', b.dataset.phase === currentPhase));
 
-  // Reset threshold to this window's default
-  const cfg = THRESHOLDS[win];
+  // Reset threshold to this (phase, window)'s default
+  const cfg = THRESHOLDS[currentPhase][currentWindow];
   const slider = document.getElementById('threshold-slider');
   slider.min = cfg.min;
   slider.max = cfg.max;
@@ -679,13 +716,18 @@ async function switchWindow(win) {
   document.getElementById('threshold-value').textContent = cfg.default + ' min';
 
   document.getElementById('status').style.display = 'block';
+  document.getElementById('status').classList.remove('error');
   document.getElementById('status').innerHTML = '<span class="spinner"></span>Loading...';
   document.getElementById('leader-table').style.display = 'none';
   try {
-    const data = await loadWindow(win);
+    const data = await loadData(currentPhase, currentWindow);
     baseRows = data.base;
     advRows = data.adv;
-    populateSeasonSelect(baseRows);
+    // Preserve user's current season selection across phase/window switches
+    // if that season still exists in the new dataset. Otherwise pick latest.
+    const available = new Set(baseRows.map(r => r.SEASON_LABEL));
+    const prevSeason = document.getElementById('season-select').value;
+    repopulateSeasonSelect(baseRows, prevSeason && available.has(prevSeason) ? prevSeason : null);
     document.getElementById('leader-table').style.display = 'table';
     document.getElementById('status').style.display = 'none';
     render();
@@ -699,8 +741,19 @@ async function switchWindow(win) {
 
 // Event wiring
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.window-btn').forEach(btn =>
-    btn.addEventListener('click', () => switchWindow(btn.dataset.window)));
+  document.querySelectorAll('[data-window]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      if (currentWindow === btn.dataset.window) return;
+      currentWindow = btn.dataset.window;
+      switchData();
+    }));
+
+  document.querySelectorAll('[data-phase]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      if (currentPhase === btn.dataset.phase) return;
+      currentPhase = btn.dataset.phase;
+      switchData();
+    }));
 
   document.getElementById('season-select').addEventListener('change', e => {
     currentSeason = e.target.value;
@@ -721,14 +774,13 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
       } else {
         currentSort.col = col;
-        // Default numeric columns to desc, string cols to asc
         currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
       }
       render();
     });
   });
 
-  switchWindow('5m');
+  switchData();
 });
 </script>
 
