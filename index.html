@@ -320,15 +320,18 @@
             <th data-col="PLAYER_NAME" data-type="str">Player</th>
             <th data-col="TEAM_ABBREVIATION" data-type="str">Team</th>
             <th data-col="GP" data-type="num">GP</th>
+            <th data-col="W" data-type="num">W</th>
+            <th data-col="L" data-type="num">L</th>
             <th data-col="MIN" data-type="num">MIN</th>
             <th data-col="PTS" data-type="num">PTS</th>
             <th data-col="REB" data-type="num">REB</th>
             <th data-col="AST" data-type="num">AST</th>
-            <th data-col="FG_PCT" data-type="num">FG%</th>
-            <th data-col="EFG_PCT" data-type="num" title="Effective FG%">eFG%</th>
+            <th data-col="FGA" data-type="num" title="Field Goals Made / Field Goals Attempted">FGM/A</th>
+            <th data-col="FTA" data-type="num" title="Free Throws Made / Free Throws Attempted">FTM/A</th>
             <th data-col="TS_PCT" data-type="num" title="True Shooting %">TS%</th>
             <th data-col="USG_PCT" data-type="num" title="Usage Rate">USG%</th>
             <th data-col="OFF_RATING" data-type="num" title="Offensive Rating (pts per 100 poss)">OffRtg</th>
+            <th data-col="DEF_RATING" data-type="num" title="Defensive Rating (opp pts per 100 poss) - lower is better">DefRtg</th>
             <th data-col="PLUS_MINUS" data-type="num">+/-</th>
             <th data-col="clutchIndex" data-type="num" class="sorted desc">Clutch Idx</th>
             <th data-col="clutchIndexPerGame" data-type="num" title="Clutch Index divided by Clutch GP">Idx / G</th>
@@ -503,7 +506,7 @@ function aggregate(base, adv, seasonFilter) {
         OREB: 0, DREB: 0, REB: 0, AST: 0, TOV: 0, STL: 0, BLK: 0, PF: 0, PTS: 0,
         PLUS_MINUS: 0,
         _adv_mins_total: 0,  // weight for advanced averages
-        _TS_w: 0, _eFG_w: 0, _USG_w: 0, _OffRtg_w: 0,  // weighted sums (× MIN)
+        _TS_w: 0, _eFG_w: 0, _USG_w: 0, _OffRtg_w: 0, _DefRtg_w: 0,  // weighted sums (× MIN)
       });
     }
     const t = agg.get(pid);
@@ -540,6 +543,7 @@ function aggregate(base, adv, seasonFilter) {
         t._eFG_w    += num(a.EFG_PCT)   * m;
         t._USG_w    += num(a.USG_PCT)   * m;
         t._OffRtg_w += num(a.OFF_RATING) * m;
+        t._DefRtg_w += num(a.DEF_RATING) * m;
       }
     }
   }
@@ -553,6 +557,7 @@ function aggregate(base, adv, seasonFilter) {
       EFG_PCT:    t._eFG_w    / minTot,
       USG_PCT:    t._USG_w    / minTot,
       OFF_RATING: t._OffRtg_w / minTot,
+      DEF_RATING: t._DefRtg_w / minTot,
     } : {};
     const syntheticBase = {
       PLAYER_ID: t.PLAYER_ID,
@@ -605,15 +610,22 @@ function buildRow(b, a) {
     PLAYER_NAME: b.PLAYER_NAME,
     TEAM_ABBREVIATION: b.TEAM_ABBREVIATION,
     GP: gp,
+    W: w,
+    L: l,
     MIN: num(b.MIN),
     PTS: pts,
     REB: num(b.REB),
     AST: ast,
+    FGM: fgm,
+    FGA: fga,
+    FTM: ftm,
+    FTA: fta,
     FG_PCT: num(b.FG_PCT),
     EFG_PCT: num(a.EFG_PCT),
     TS_PCT: num(a.TS_PCT),
     USG_PCT: num(a.USG_PCT),
     OFF_RATING: num(a.OFF_RATING),
+    DEF_RATING: num(a.DEF_RATING),
     PLUS_MINUS: pm,
     clutchIndex: clutchIndex,
     clutchIndexPerGame: clutchIndexPerGame,
@@ -623,9 +635,12 @@ function buildRow(b, a) {
 // ── RENDERING ─────────────────────────────────────────────────
 function fmt(v, type) {
   if (type === 'int') return Math.round(v).toLocaleString();
-  if (type === 'pct') return v > 0 ? (v * 100).toFixed(1) + '%' : '—';
-  if (type === 'pct1') return v > 0 ? v.toFixed(1) : '—';
-  if (type === 'dec1') return v === 0 ? '0.0' : v.toFixed(1);
+  if (type === 'pct') {
+    // Percentages are stored as 0-1 decimals; show as 0% instead of — when value is 0
+    return (v * 100).toFixed(1) + '%';
+  }
+  if (type === 'pct1') return v.toFixed(1);
+  if (type === 'dec1') return v.toFixed(1);
   if (type === 'dec2') return v.toFixed(2);
   if (type === 'plusminus') {
     if (v === 0) return '0';
@@ -673,22 +688,25 @@ function render() {
       <td class="player-cell">${escapeHtml(r.PLAYER_NAME)}</td>
       <td class="team-cell">${escapeHtml(r.TEAM_ABBREVIATION || '—')}</td>
       <td>${fmt(r.GP, 'int')}</td>
+      <td>${fmt(r.W, 'int')}</td>
+      <td>${fmt(r.L, 'int')}</td>
       <td>${fmt(r.MIN, 'int')}</td>
       <td>${fmt(r.PTS, 'int')}</td>
       <td>${fmt(r.REB, 'int')}</td>
       <td>${fmt(r.AST, 'int')}</td>
-      <td>${fmt(r.FG_PCT, 'pct')}</td>
-      <td>${fmt(r.EFG_PCT, 'pct')}</td>
+      <td>${fmt(r.FGM, 'int')}/${fmt(r.FGA, 'int')}</td>
+      <td>${fmt(r.FTM, 'int')}/${fmt(r.FTA, 'int')}</td>
       <td>${fmt(r.TS_PCT, 'pct')}</td>
       <td>${fmt(r.USG_PCT, 'pct')}</td>
       <td>${fmt(r.OFF_RATING, 'pct1')}</td>
+      <td>${fmt(r.DEF_RATING, 'pct1')}</td>
       <td>${fmt(r.PLUS_MINUS, 'plusminus')}</td>
       <td class="score-cell">${fmt(r.clutchIndex, 'dec2')}</td>
       <td class="score-cell">${fmt(r.clutchIndexPerGame, 'dec2')}</td>
     </tr>`;
   });
   if (!qualified.length) {
-    html = `<tr><td colspan="16" class="status">No players meet the minimum MIN threshold. Lower it with the slider.</td></tr>`;
+    html = `<tr><td colspan="19" class="status">No players meet the minimum MIN threshold. Lower it with the slider.</td></tr>`;
   }
   tbody.innerHTML = html;
 
@@ -781,7 +799,13 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
       } else {
         currentSort.col = col;
-        currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
+        // Default numeric columns to desc, string cols to asc.
+        // Special case: DefRtg — lower is better, so default to asc.
+        if (col === 'DEF_RATING') {
+          currentSort.dir = 'asc';
+        } else {
+          currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
+        }
       }
       render();
     });
