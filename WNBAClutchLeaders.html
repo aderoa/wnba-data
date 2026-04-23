@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WNBA Clutch Leaders</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e7e5e4;
+    --border-strong: #d6d3d1;
+    --text-primary: #1c1917;
+    --text-secondary: #57534e;
+    --text-muted: #a8a29e;
+    --accent: #ea580c;
+    --accent-hover: #c2410c;
+    --accent-light: #fff7ed;
+    --accent-gold: #d97706;
+    --accent-green: #16a34a;
+    --accent-blue: #2563eb;
+    --accent-purple: #9333ea;
+    --row-hover: #fafaf9;
+    --row-alt: #fafaf9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+  header { margin-bottom: 24px; }
+  h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin: 0 0 4px 0;
+    letter-spacing: -0.02em;
+  }
+  .subtitle { color: var(--text-secondary); font-size: 0.95rem; margin: 0 0 4px 0; }
+  .formula-note {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 4px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .control-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+  }
+  select, .slider-wrap, .window-group {
+    font-family: inherit;
+    font-size: 0.875rem;
+  }
+  select {
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text-primary);
+    cursor: pointer;
+    min-width: 140px;
+  }
+  select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-light);
+  }
+
+  .window-group {
+    display: inline-flex;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .window-btn {
+    padding: 8px 14px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+  }
+  .window-btn + .window-btn { border-left: 1px solid var(--border-strong); }
+  .window-btn:hover { background: var(--accent-light); color: var(--accent-hover); }
+  .window-btn.active { background: var(--accent); color: white; }
+
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 260px;
+  }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid white;
+  }
+  .slider-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.8rem;
+    min-width: 60px;
+    color: var(--text-primary);
+  }
+
+  .stats-summary {
+    display: flex;
+    gap: 24px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-left: auto;
+  }
+  .stats-summary b { color: var(--text-primary); font-weight: 600; }
+
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  thead {
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  th {
+    padding: 10px 10px;
+    text-align: right;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  th:first-child, th:nth-child(2), th:nth-child(3) { text-align: left; }
+  th:hover { background: var(--accent-light); color: var(--accent-hover); }
+  th.sorted { color: var(--accent); }
+  th.sorted::after {
+    content: '';
+    display: inline-block;
+    margin-left: 4px;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+  }
+  th.sorted.desc::after { border-top: 4px solid var(--accent); }
+  th.sorted.asc::after { border-bottom: 4px solid var(--accent); }
+
+  td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  td:first-child { color: var(--text-muted); font-weight: 500; }
+  td.player-cell {
+    text-align: left;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  td.team-cell {
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+  }
+  td.score-cell {
+    font-weight: 700;
+    color: var(--accent);
+  }
+  tr:hover { background: var(--row-hover); }
+  tr.top1 td.score-cell { color: var(--accent-gold); font-size: 0.9rem; }
+  tr.top2 td.score-cell, tr.top3 td.score-cell { color: var(--accent); }
+
+  .status {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .status.error { color: #dc2626; }
+  .spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  footer {
+    margin-top: 24px;
+    padding: 16px 0;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 720px) {
+    h1 { font-size: 1.3rem; }
+    .controls { padding: 12px; gap: 12px; }
+    .stats-summary { margin-left: 0; width: 100%; }
+    .slider-wrap { min-width: 200px; }
+    td, th { padding: 6px 8px; font-size: 0.78rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>WNBA Clutch Leaders</h1>
+    <p class="subtitle">Who shows up when the game is close. Source: stats.wnba.com via nba_api.</p>
+    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × ((1.25·W - 0.8·L - PM/GP) / GP)</p>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <label class="control-label" for="season-select">Season</label>
+      <select id="season-select"></select>
+    </div>
+    <div class="control-group">
+      <label class="control-label">Clutch Window</label>
+      <div class="window-group" id="window-group">
+        <button class="window-btn active" data-window="5m">Last 5 min</button>
+        <button class="window-btn" data-window="3m">Last 3 min</button>
+        <button class="window-btn" data-window="1m">Last 1 min</button>
+      </div>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="threshold-slider">Minimum Clutch MIN</label>
+      <div class="slider-wrap">
+        <input type="range" id="threshold-slider" min="0" max="100" value="30">
+        <span class="slider-value" id="threshold-value">30 min</span>
+      </div>
+    </div>
+    <div class="stats-summary" id="stats-summary"></div>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <div id="status" class="status"><span class="spinner"></span>Loading clutch data...</div>
+      <table id="leader-table" style="display:none">
+        <thead>
+          <tr>
+            <th data-col="rank" data-type="num" class="sorted desc">#</th>
+            <th data-col="PLAYER_NAME" data-type="str">Player</th>
+            <th data-col="TEAM_ABBREVIATION" data-type="str">Team</th>
+            <th data-col="GP" data-type="num">GP</th>
+            <th data-col="MIN" data-type="num">MIN</th>
+            <th data-col="PTS" data-type="num">PTS</th>
+            <th data-col="REB" data-type="num">REB</th>
+            <th data-col="AST" data-type="num">AST</th>
+            <th data-col="FG_PCT" data-type="num">FG%</th>
+            <th data-col="EFG_PCT" data-type="num" title="Effective FG%">eFG%</th>
+            <th data-col="TS_PCT" data-type="num" title="True Shooting %">TS%</th>
+            <th data-col="USG_PCT" data-type="num" title="Usage Rate">USG%</th>
+            <th data-col="OFF_RATING" data-type="num" title="Offensive Rating (pts per 100 poss)">OffRtg</th>
+            <th data-col="PLUS_MINUS" data-type="num">+/-</th>
+            <th data-col="clutchIndex" data-type="num" class="sorted desc">Clutch Idx</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    Clutch = game within 5 pts, in the final N minutes (and overtime). Data from stats.wnba.com.
+  </footer>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+const DATA_BASE_URL = 'https://aderoa.github.io/wnba-data/';
+const DATASETS = {
+  '5m': { base: '_merged_clutch_5m_base.csv', adv: '_merged_clutch_5m_adv.csv' },
+  '3m': { base: '_merged_clutch_3m_base.csv', adv: '_merged_clutch_3m_adv.csv' },
+  '1m': { base: '_merged_clutch_1m_base.csv', adv: '_merged_clutch_1m_adv.csv' },
+};
+// Threshold defaults & slider ranges per clutch window (minutes).
+// Smaller windows have smaller samples, so lower defaults.
+const THRESHOLDS = {
+  '5m': { min: 0, max: 200, default: 30 },
+  '3m': { min: 0, max: 100, default: 15 },
+  '1m': { min: 0,  max: 40,  default: 8  },
+};
+
+// State
+let baseRows = [];   // current merged base rows
+let advRows = [];    // current merged advanced rows (joined by PLAYER_ID+SEASON)
+let currentWindow = '5m';
+let currentSeason = 'latest';   // 'latest' | season string | 'all-time'
+let currentThreshold = 30;
+let currentSort = { col: 'clutchIndex', dir: 'desc' };
+const dataCache = {};  // { '5m': { base: [...], adv: [...] } }
+
+// ── CSV PARSING ───────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return { header: [], rows: [] };
+  const header = parseRow(lines[0]);
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+    const cells = parseRow(lines[i]);
+    const obj = {};
+    for (let j = 0; j < header.length; j++) obj[header[j]] = cells[j];
+    rows.push(obj);
+  }
+  return { header, rows };
+}
+function parseRow(line) {
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+// ── DATA LOADING ──────────────────────────────────────────────
+async function loadWindow(winKey) {
+  if (dataCache[winKey]) return dataCache[winKey];
+  const files = DATASETS[winKey];
+  const [baseText, advText] = await Promise.all([
+    fetch(DATA_BASE_URL + files.base).then(r => { if (!r.ok) throw new Error(files.base + ': ' + r.status); return r.text(); }),
+    fetch(DATA_BASE_URL + files.adv ).then(r => { if (!r.ok) throw new Error(files.adv  + ': ' + r.status); return r.text(); }),
+  ]);
+  const base = parseCSV(baseText).rows;
+  const adv  = parseCSV(advText).rows;
+  dataCache[winKey] = { base, adv };
+  return dataCache[winKey];
+}
+
+// Populate season dropdown from available data
+function populateSeasonSelect(rows) {
+  const seasons = [...new Set(rows.map(r => r.SEASON_LABEL).filter(Boolean))].sort();
+  const sel = document.getElementById('season-select');
+  if (sel.children.length > 0) return;  // already populated
+  // Default = most recent season
+  const latest = seasons[seasons.length - 1];
+  const opts = [
+    `<option value="${latest}" selected>${latest} (latest)</option>`,
+    `<option value="__ALLTIME__">All-time (career totals)</option>`,
+    `<option disabled>──────────</option>`,
+    ...seasons.slice().reverse().map(s => s === latest ? '' : `<option value="${s}">${s}</option>`).filter(Boolean),
+  ];
+  sel.innerHTML = opts.join('');
+  currentSeason = latest;
+}
+
+// ── AGGREGATION ───────────────────────────────────────────────
+// Join base + adv rows on PLAYER_ID + SEASON_LABEL.
+// Filter by season. For 'All-Time', sum totals across seasons per player.
+function num(v) {
+  if (v === undefined || v === null || v === '') return 0;
+  const n = parseFloat(v);
+  return isNaN(n) ? 0 : n;
+}
+function aggregate(base, adv, seasonFilter) {
+  // Build adv lookup: (PLAYER_ID, SEASON) -> row
+  const advMap = new Map();
+  for (const r of adv) {
+    const key = r.PLAYER_ID + '|' + r.SEASON_LABEL;
+    advMap.set(key, r);
+  }
+
+  if (seasonFilter !== '__ALLTIME__') {
+    // Per-season mode: one row per player in that season
+    const rows = [];
+    for (const r of base) {
+      if (r.SEASON_LABEL !== seasonFilter) continue;
+      const a = advMap.get(r.PLAYER_ID + '|' + r.SEASON_LABEL) || {};
+      rows.push(buildRow(r, a));
+    }
+    return rows;
+  }
+
+  // All-time: aggregate by PLAYER_ID
+  const agg = new Map();  // pid -> combined totals
+  for (const r of base) {
+    const pid = r.PLAYER_ID;
+    if (!agg.has(pid)) {
+      agg.set(pid, {
+        PLAYER_ID: pid,
+        PLAYER_NAME: r.PLAYER_NAME,
+        TEAM_ABBREVIATION: r.TEAM_ABBREVIATION,  // last team seen
+        GP: 0, W: 0, L: 0, MIN: 0,
+        FGM: 0, FGA: 0, FG3M: 0, FG3A: 0, FTM: 0, FTA: 0,
+        OREB: 0, DREB: 0, REB: 0, AST: 0, TOV: 0, STL: 0, BLK: 0, PF: 0, PTS: 0,
+        PLUS_MINUS: 0,
+        _adv_mins_total: 0,  // weight for advanced averages
+        _TS_w: 0, _eFG_w: 0, _USG_w: 0, _OffRtg_w: 0,  // weighted sums (× MIN)
+      });
+    }
+    const t = agg.get(pid);
+    t.GP         += num(r.GP);
+    t.W          += num(r.W);
+    t.L          += num(r.L);
+    t.MIN        += num(r.MIN);
+    t.FGM        += num(r.FGM);
+    t.FGA        += num(r.FGA);
+    t.FG3M       += num(r.FG3M);
+    t.FG3A       += num(r.FG3A);
+    t.FTM        += num(r.FTM);
+    t.FTA        += num(r.FTA);
+    t.OREB       += num(r.OREB);
+    t.DREB       += num(r.DREB);
+    t.REB        += num(r.REB);
+    t.AST        += num(r.AST);
+    t.TOV        += num(r.TOV);
+    t.STL        += num(r.STL);
+    t.BLK        += num(r.BLK);
+    t.PF         += num(r.PF);
+    t.PTS        += num(r.PTS);
+    t.PLUS_MINUS += num(r.PLUS_MINUS);
+    // Latest team wins (chronological sort ensures this works)
+    t.TEAM_ABBREVIATION = r.TEAM_ABBREVIATION;
+
+    // Advanced — weighted by MIN to get proper career averages
+    const a = advMap.get(pid + '|' + r.SEASON_LABEL);
+    if (a) {
+      const m = num(r.MIN);
+      if (m > 0) {
+        t._adv_mins_total += m;
+        t._TS_w     += num(a.TS_PCT)    * m;
+        t._eFG_w    += num(a.EFG_PCT)   * m;
+        t._USG_w    += num(a.USG_PCT)   * m;
+        t._OffRtg_w += num(a.OFF_RATING) * m;
+      }
+    }
+  }
+
+  // Finalize: compute percentages and build final rows
+  const out = [];
+  for (const t of agg.values()) {
+    const minTot = t._adv_mins_total || 0;
+    const syntheticAdv = minTot > 0 ? {
+      TS_PCT:     t._TS_w     / minTot,
+      EFG_PCT:    t._eFG_w    / minTot,
+      USG_PCT:    t._USG_w    / minTot,
+      OFF_RATING: t._OffRtg_w / minTot,
+    } : {};
+    const syntheticBase = {
+      PLAYER_ID: t.PLAYER_ID,
+      PLAYER_NAME: t.PLAYER_NAME,
+      TEAM_ABBREVIATION: t.TEAM_ABBREVIATION,
+      GP: t.GP, W: t.W, L: t.L, MIN: t.MIN,
+      FGM: t.FGM, FGA: t.FGA, FG3M: t.FG3M, FG3A: t.FG3A, FTM: t.FTM, FTA: t.FTA,
+      OREB: t.OREB, DREB: t.DREB, REB: t.REB, AST: t.AST, TOV: t.TOV,
+      STL: t.STL, BLK: t.BLK, PF: t.PF, PTS: t.PTS, PLUS_MINUS: t.PLUS_MINUS,
+      FG_PCT: t.FGA > 0 ? t.FGM / t.FGA : 0,
+    };
+    out.push(buildRow(syntheticBase, syntheticAdv));
+  }
+  return out;
+}
+
+function buildRow(b, a) {
+  const pts = num(b.PTS), fgm = num(b.FGM), fga = num(b.FGA);
+  const ftm = num(b.FTM), fta = num(b.FTA);
+  const oreb = num(b.OREB), dreb = num(b.DREB);
+  const stl = num(b.STL), blk = num(b.BLK), ast = num(b.AST);
+  const pf = num(b.PF), tov = num(b.TOV);
+  const w = num(b.W), l = num(b.L), gp = num(b.GP);
+  const pm = num(b.PLUS_MINUS);
+
+  // Clutch Index (per formula, locked in)
+  const boxPart =
+      pts
+      + 0.4 * fgm
+      - 0.7 * fga
+      + 0.4 * (fta - ftm)
+      + 0.7 * oreb
+      + 0.3 * dreb
+      + stl
+      + 0.7 * blk
+      + 0.6 * ast
+      - 0.4 * pf
+      - tov;
+  const multiplier = gp > 0
+    ? ((1.25 * w) - (0.8 * l) - (pm / gp)) / gp
+    : 0;
+  const clutchIndex = boxPart * multiplier;
+
+  return {
+    PLAYER_ID: b.PLAYER_ID,
+    PLAYER_NAME: b.PLAYER_NAME,
+    TEAM_ABBREVIATION: b.TEAM_ABBREVIATION,
+    GP: gp,
+    MIN: num(b.MIN),
+    PTS: pts,
+    REB: num(b.REB),
+    AST: ast,
+    FG_PCT: num(b.FG_PCT),
+    EFG_PCT: num(a.EFG_PCT),
+    TS_PCT: num(a.TS_PCT),
+    USG_PCT: num(a.USG_PCT),
+    OFF_RATING: num(a.OFF_RATING),
+    PLUS_MINUS: pm,
+    clutchIndex: clutchIndex,
+  };
+}
+
+// ── RENDERING ─────────────────────────────────────────────────
+function fmt(v, type) {
+  if (type === 'int') return Math.round(v).toLocaleString();
+  if (type === 'pct') return v > 0 ? (v * 100).toFixed(1) + '%' : '—';
+  if (type === 'pct1') return v > 0 ? v.toFixed(1) : '—';
+  if (type === 'dec1') return v === 0 ? '0.0' : v.toFixed(1);
+  if (type === 'dec2') return v.toFixed(2);
+  if (type === 'plusminus') {
+    if (v === 0) return '0';
+    return v > 0 ? '+' + Math.round(v) : Math.round(v).toString();
+  }
+  return v;
+}
+
+function render() {
+  const rows = aggregate(baseRows, advRows, currentSeason === 'latest' ? currentSeason : currentSeason);
+  // Filter by threshold (using MIN in clutch)
+  const qualified = rows.filter(r => r.MIN >= currentThreshold);
+  // Sort
+  qualified.sort((a, b) => {
+    let va = a[currentSort.col], vb = b[currentSort.col];
+    const t = document.querySelector(`th[data-col="${currentSort.col}"]`)?.dataset.type;
+    if (t === 'str') {
+      va = (va || '').toString();
+      vb = (vb || '').toString();
+      const cmp = va.localeCompare(vb);
+      return currentSort.dir === 'desc' ? -cmp : cmp;
+    }
+    const aBad = va === undefined || va === null || Number.isNaN(va);
+    const bBad = vb === undefined || vb === null || Number.isNaN(vb);
+    if (aBad && bBad) return 0;
+    if (aBad) return 1;
+    if (bBad) return -1;
+    const cmp = va - vb;
+    return currentSort.dir === 'desc' ? -cmp : cmp;
+  });
+
+  // Summary
+  document.getElementById('stats-summary').innerHTML =
+    `<span><b>${qualified.length}</b> qualified</span>` +
+    `<span><b>${rows.length - qualified.length}</b> below threshold</span>` +
+    `<span><b>${rows.length}</b> total</span>`;
+
+  // Render tbody
+  const tbody = document.querySelector('#leader-table tbody');
+  let html = '';
+  qualified.forEach((r, i) => {
+    const rankClass = i === 0 ? 'top1' : (i === 1 ? 'top2' : (i === 2 ? 'top3' : ''));
+    html += `<tr class="${rankClass}">
+      <td>${i + 1}</td>
+      <td class="player-cell">${escapeHtml(r.PLAYER_NAME)}</td>
+      <td class="team-cell">${escapeHtml(r.TEAM_ABBREVIATION || '—')}</td>
+      <td>${fmt(r.GP, 'int')}</td>
+      <td>${fmt(r.MIN, 'int')}</td>
+      <td>${fmt(r.PTS, 'int')}</td>
+      <td>${fmt(r.REB, 'int')}</td>
+      <td>${fmt(r.AST, 'int')}</td>
+      <td>${fmt(r.FG_PCT, 'pct')}</td>
+      <td>${fmt(r.EFG_PCT, 'pct')}</td>
+      <td>${fmt(r.TS_PCT, 'pct')}</td>
+      <td>${fmt(r.USG_PCT, 'pct')}</td>
+      <td>${fmt(r.OFF_RATING, 'pct1')}</td>
+      <td>${fmt(r.PLUS_MINUS, 'plusminus')}</td>
+      <td class="score-cell">${fmt(r.clutchIndex, 'dec2')}</td>
+    </tr>`;
+  });
+  if (!qualified.length) {
+    html = `<tr><td colspan="15" class="status">No players meet the minimum MIN threshold. Lower it with the slider.</td></tr>`;
+  }
+  tbody.innerHTML = html;
+
+  // Sort header decoration
+  document.querySelectorAll('th').forEach(th => {
+    th.classList.remove('sorted', 'desc', 'asc');
+    if (th.dataset.col === currentSort.col) {
+      th.classList.add('sorted', currentSort.dir);
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return (s || '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── CONTROLS WIRING ───────────────────────────────────────────
+async function switchWindow(win) {
+  currentWindow = win;
+  document.querySelectorAll('.window-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.window === win));
+
+  // Reset threshold to this window's default
+  const cfg = THRESHOLDS[win];
+  const slider = document.getElementById('threshold-slider');
+  slider.min = cfg.min;
+  slider.max = cfg.max;
+  slider.value = cfg.default;
+  currentThreshold = cfg.default;
+  document.getElementById('threshold-value').textContent = cfg.default + ' min';
+
+  document.getElementById('status').style.display = 'block';
+  document.getElementById('status').innerHTML = '<span class="spinner"></span>Loading...';
+  document.getElementById('leader-table').style.display = 'none';
+  try {
+    const data = await loadWindow(win);
+    baseRows = data.base;
+    advRows = data.adv;
+    populateSeasonSelect(baseRows);
+    document.getElementById('leader-table').style.display = 'table';
+    document.getElementById('status').style.display = 'none';
+    render();
+  } catch (e) {
+    document.getElementById('status').innerHTML =
+      `<b class="error">Failed to load data:</b> ${escapeHtml(e.message)}<br>` +
+      `<small>Expected at: <code>${DATA_BASE_URL}</code></small>`;
+    document.getElementById('status').classList.add('error');
+  }
+}
+
+// Event wiring
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.window-btn').forEach(btn =>
+    btn.addEventListener('click', () => switchWindow(btn.dataset.window)));
+
+  document.getElementById('season-select').addEventListener('change', e => {
+    currentSeason = e.target.value;
+    render();
+  });
+
+  const slider = document.getElementById('threshold-slider');
+  slider.addEventListener('input', e => {
+    currentThreshold = parseFloat(e.target.value);
+    document.getElementById('threshold-value').textContent = currentThreshold + ' min';
+    render();
+  });
+
+  document.querySelectorAll('th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (currentSort.col === col) {
+        currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        currentSort.col = col;
+        // Default numeric columns to desc, string cols to asc
+        currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
+      }
+      render();
+    });
+  });
+
+  switchWindow('5m');
+});
+</script>
+
+</body>
+</html>
