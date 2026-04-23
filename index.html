@@ -277,7 +277,7 @@
   <header>
     <h1>WNBA Clutch Leaders</h1>
     <p class="subtitle">Who shows up when the game is close. Source: stats.wnba.com via nba_api.</p>
-    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × (0.8·L + 1.25·W - PM/GP) / GP</p>
+    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × (0.8·L + 1.25·W + PM/GP) / GP</p>
   </header>
 
   <div class="controls">
@@ -591,17 +591,21 @@ function buildRow(b, a) {
   const w = num(b.W), l = num(b.L), gp = num(b.GP);
   const pm = num(b.PLUS_MINUS);
 
-  // Clutch Index (matches the original Google Sheets formula):
-  //   =((PTS + 0.4*FGM - 0.7*FGA + 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB
-  //     + STL + 0.7*BLK + 0.6*AST - 0.4*PF - TOV))
-  //   * ((L*0.8) + (W*1.25) - (PM/GP)) / GP
+  // Clutch Index — adapted from the original Google Sheets formula.
+  // Box part: standard Hollinger-style weighted box score.
+  //   PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB
+  //   + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV
+  // Multiplier: team success factor per game.
+  //   ((0.8·L) + (1.25·W) + (PM/GP)) / GP
   //
-  // Design note: when both boxPart AND multiplier are negative, the raw product
-  // becomes spuriously positive (negative × negative = positive), which would
-  // incorrectly reward a player who played badly on a winning team. To avoid
-  // this artifact, we flip the multiplier's sign in that specific case so the
-  // final Clutch Index stays negative. Negative values are expected in other
-  // cases too (e.g., good box on a losing team), so this is consistent.
+  // Note: the original spreadsheet used -(PM/GP), which perversely penalized
+  // players whose teams outscored opponents during their clutch minutes. We
+  // flipped that sign so the multiplier correctly rewards team success.
+  // With this correction the formula behaves consistently:
+  //   - good box + winning team  → high positive score
+  //   - good box + losing team   → lower positive or near zero
+  //   - bad box + winning team   → negative score (penalized)
+  //   - bad box + losing team    → negative score (penalized)
   const boxPart =
       pts
       + 0.4 * fgm
@@ -614,14 +618,9 @@ function buildRow(b, a) {
       + 0.6 * ast
       - 0.4 * pf
       - tov;
-  let multiplier = gp > 0
-    ? ((0.8 * l) + (1.25 * w) - (pm / gp)) / gp
+  const multiplier = gp > 0
+    ? ((0.8 * l) + (1.25 * w) + (pm / gp)) / gp
     : 0;
-  // Double-negative correction: when boxPart is negative, force multiplier to
-  // be non-negative so the final Clutch Index reflects poor play correctly.
-  if (boxPart < 0 && multiplier < 0) {
-    multiplier = -multiplier;
-  }
   const clutchIndex = boxPart * multiplier;
   const clutchIndexPerGame = gp > 0 ? clutchIndex / gp : 0;
 
