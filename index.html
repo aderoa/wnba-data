@@ -438,6 +438,14 @@ async function loadData(phase, winKey) {
   return dataCache[cacheKey];
 }
 
+// WNBA seasons are stored as "2025-26" format but conceptually are single-year
+// leagues ("the 2025 season"). Display as the starting year only.
+function displaySeason(seasonLabel) {
+  if (!seasonLabel) return seasonLabel;
+  const m = seasonLabel.match(/^(\d{4})-/);
+  return m ? m[1] : seasonLabel;
+}
+
 // Populate season dropdown from available data. Called on every phase/window
 // switch because the set of available seasons may differ (e.g., advanced
 // metrics start later, playoffs have different coverage).
@@ -454,12 +462,12 @@ function repopulateSeasonSelect(rows, preserveSeason) {
                : (preserveSeason === '__ALLTIME__' ? '__ALLTIME__' : latest);
 
   const opts = [];
-  opts.push(`<option value="${latest}"${chosen === latest ? ' selected' : ''}>${latest} (latest)</option>`);
+  opts.push(`<option value="${latest}"${chosen === latest ? ' selected' : ''}>${displaySeason(latest)} (latest)</option>`);
   opts.push(`<option value="__ALLTIME__"${chosen === '__ALLTIME__' ? ' selected' : ''}>All-time (career totals)</option>`);
   opts.push(`<option disabled>──────────</option>`);
   for (const s of seasons.slice().reverse()) {
     if (s === latest) continue;
-    opts.push(`<option value="${s}"${chosen === s ? ' selected' : ''}>${s}</option>`);
+    opts.push(`<option value="${s}"${chosen === s ? ' selected' : ''}>${displaySeason(s)}</option>`);
   }
   sel.innerHTML = opts.join('');
   currentSeason = chosen;
@@ -587,6 +595,13 @@ function buildRow(b, a) {
   //   =((PTS + 0.4*FGM - 0.7*FGA + 0.4*(FTA-FTM) + 0.7*OREB + 0.3*DREB
   //     + STL + 0.7*BLK + 0.6*AST - 0.4*PF - TOV))
   //   * ((L*0.8) + (W*1.25) - (PM/GP)) / GP
+  //
+  // Design note: when both boxPart AND multiplier are negative, the raw product
+  // becomes spuriously positive (negative × negative = positive), which would
+  // incorrectly reward a player who played badly on a winning team. To avoid
+  // this artifact, we flip the multiplier's sign in that specific case so the
+  // final Clutch Index stays negative. Negative values are expected in other
+  // cases too (e.g., good box on a losing team), so this is consistent.
   const boxPart =
       pts
       + 0.4 * fgm
@@ -599,9 +614,14 @@ function buildRow(b, a) {
       + 0.6 * ast
       - 0.4 * pf
       - tov;
-  const multiplier = gp > 0
+  let multiplier = gp > 0
     ? ((0.8 * l) + (1.25 * w) - (pm / gp)) / gp
     : 0;
+  // Double-negative correction: when boxPart is negative, force multiplier to
+  // be non-negative so the final Clutch Index reflects poor play correctly.
+  if (boxPart < 0 && multiplier < 0) {
+    multiplier = -multiplier;
+  }
   const clutchIndex = boxPart * multiplier;
   const clutchIndexPerGame = gp > 0 ? clutchIndex / gp : 0;
 
@@ -748,11 +768,18 @@ async function switchData() {
     const data = await loadData(currentPhase, currentWindow);
     baseRows = data.base;
     advRows = data.adv;
-    // Preserve user's current season selection across phase/window switches
-    // if that season still exists in the new dataset. Otherwise pick latest.
+    // Preserve user's current season selection across phase/window switches.
+    // currentSeason is our state variable (includes '__ALLTIME__' sentinel).
+    // If the real season no longer exists in the new dataset (rare — e.g., an
+    // advanced-only season missing from base), fall back to latest.
     const available = new Set(baseRows.map(r => r.SEASON_LABEL));
-    const prevSeason = document.getElementById('season-select').value;
-    repopulateSeasonSelect(baseRows, prevSeason && available.has(prevSeason) ? prevSeason : null);
+    let preserveSeason = null;
+    if (currentSeason === '__ALLTIME__') {
+      preserveSeason = '__ALLTIME__';
+    } else if (currentSeason && available.has(currentSeason)) {
+      preserveSeason = currentSeason;
+    }
+    repopulateSeasonSelect(baseRows, preserveSeason);
     document.getElementById('leader-table').style.display = 'table';
     document.getElementById('status').style.display = 'none';
     render();
