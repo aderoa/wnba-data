@@ -327,11 +327,11 @@
             <th data-col="REB" data-type="num">REB</th>
             <th data-col="AST" data-type="num">AST</th>
             <th data-col="FGA" data-type="num" title="Field Goals Made / Field Goals Attempted">FGM/A</th>
+            <th data-col="FG3A" data-type="num" title="3-Point Field Goals Made / Attempted">3PM/A</th>
             <th data-col="FTA" data-type="num" title="Free Throws Made / Free Throws Attempted">FTM/A</th>
             <th data-col="TS_PCT" data-type="num" title="True Shooting %">TS%</th>
             <th data-col="USG_PCT" data-type="num" title="Usage Rate">USG%</th>
-            <th data-col="OFF_RATING" data-type="num" title="Offensive Rating (pts per 100 poss)">OffRtg</th>
-            <th data-col="DEF_RATING" data-type="num" title="Defensive Rating (opp pts per 100 poss) - lower is better">DefRtg</th>
+            <th data-col="NET_RATING" data-type="num" title="Net Rating (OffRtg - DefRtg, higher is better)">NetRtg</th>
             <th data-col="PLUS_MINUS" data-type="num">+/-</th>
             <th data-col="clutchIndex" data-type="num" class="sorted desc">Clutch Idx</th>
             <th data-col="clutchIndexPerGame" data-type="num" title="Clutch Index divided by Clutch GP">Idx / G</th>
@@ -523,7 +523,7 @@ function aggregate(base, adv, seasonFilter) {
         OREB: 0, DREB: 0, REB: 0, AST: 0, TOV: 0, STL: 0, BLK: 0, PF: 0, PTS: 0,
         PLUS_MINUS: 0,
         _adv_mins_total: 0,  // weight for advanced averages
-        _TS_w: 0, _eFG_w: 0, _USG_w: 0, _OffRtg_w: 0, _DefRtg_w: 0,  // weighted sums (× MIN)
+        _TS_w: 0, _eFG_w: 0, _USG_w: 0, _OffRtg_w: 0, _NetRtg_w: 0,  // weighted sums (× MIN)
       });
     }
     const t = agg.get(pid);
@@ -560,7 +560,7 @@ function aggregate(base, adv, seasonFilter) {
         t._eFG_w    += num(a.EFG_PCT)   * m;
         t._USG_w    += num(a.USG_PCT)   * m;
         t._OffRtg_w += num(a.OFF_RATING) * m;
-        t._DefRtg_w += num(a.DEF_RATING) * m;
+        t._NetRtg_w += num(a.NET_RATING) * m;
       }
     }
   }
@@ -574,7 +574,7 @@ function aggregate(base, adv, seasonFilter) {
       EFG_PCT:    t._eFG_w    / minTot,
       USG_PCT:    t._USG_w    / minTot,
       OFF_RATING: t._OffRtg_w / minTot,
-      DEF_RATING: t._DefRtg_w / minTot,
+      NET_RATING: t._NetRtg_w / minTot,
     } : {};
     const syntheticBase = {
       PLAYER_ID: t.PLAYER_ID,
@@ -653,6 +653,8 @@ function buildRow(b, a) {
     AST: ast,
     FGM: fgm,
     FGA: fga,
+    FG3M: num(b.FG3M),
+    FG3A: num(b.FG3A),
     FTM: ftm,
     FTA: fta,
     FG_PCT: num(b.FG_PCT),
@@ -660,7 +662,7 @@ function buildRow(b, a) {
     TS_PCT: num(a.TS_PCT),
     USG_PCT: num(a.USG_PCT),
     OFF_RATING: num(a.OFF_RATING),
-    DEF_RATING: num(a.DEF_RATING),
+    NET_RATING: num(a.NET_RATING),
     PLUS_MINUS: pm,
     clutchIndex: clutchIndex,
     clutchIndexPerGame: clutchIndexPerGame,
@@ -680,6 +682,11 @@ function fmt(v, type) {
   if (type === 'plusminus') {
     if (v === 0) return '0';
     return v > 0 ? '+' + Math.round(v) : Math.round(v).toString();
+  }
+  if (type === 'netrtg') {
+    // Net Rating: signed decimal, +/- prefix like plus-minus
+    if (v === 0) return '0.0';
+    return v > 0 ? '+' + v.toFixed(1) : v.toFixed(1);
   }
   return v;
 }
@@ -730,11 +737,11 @@ function render() {
       <td>${fmt(r.REB, 'int')}</td>
       <td>${fmt(r.AST, 'int')}</td>
       <td>${fmt(r.FGM, 'int')}/${fmt(r.FGA, 'int')}</td>
+      <td>${fmt(r.FG3M, 'int')}/${fmt(r.FG3A, 'int')}</td>
       <td>${fmt(r.FTM, 'int')}/${fmt(r.FTA, 'int')}</td>
       <td>${fmt(r.TS_PCT, 'pct')}</td>
       <td>${fmt(r.USG_PCT, 'pct')}</td>
-      <td>${fmt(r.OFF_RATING, 'pct1')}</td>
-      <td>${fmt(r.DEF_RATING, 'pct1')}</td>
+      <td>${fmt(r.NET_RATING, 'netrtg')}</td>
       <td>${fmt(r.PLUS_MINUS, 'plusminus')}</td>
       <td class="score-cell">${fmt(r.clutchIndex, 'dec2')}</td>
       <td class="score-cell">${fmt(r.clutchIndexPerGame, 'dec2')}</td>
@@ -841,13 +848,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentSort.dir = currentSort.dir === 'desc' ? 'asc' : 'desc';
       } else {
         currentSort.col = col;
-        // Default numeric columns to desc, string cols to asc.
-        // Special case: DefRtg — lower is better, so default to asc.
-        if (col === 'DEF_RATING') {
-          currentSort.dir = 'asc';
-        } else {
-          currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
-        }
+        currentSort.dir = th.dataset.type === 'str' ? 'asc' : 'desc';
       }
       render();
     });
