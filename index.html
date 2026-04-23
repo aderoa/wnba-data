@@ -277,7 +277,7 @@
   <header>
     <h1>WNBA Clutch Leaders</h1>
     <p class="subtitle">Who shows up when the game is close. Source: stats.wnba.com via nba_api.</p>
-    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × (0.8·L + 1.25·W + PM/GP) / GP</p>
+    <p class="formula-note">Clutch Index = (PTS + 0.4·FGM - 0.7·FGA + 0.4·(FTA-FTM) + 0.7·OREB + 0.3·DREB + STL + 0.7·BLK + 0.6·AST - 0.4·PF - TOV) × (0.8·L + 1.25·W + PM/GP) / GP &nbsp;•&nbsp; Clutch Idx scaled by MIN/reference (small-sample correction); Idx/G is raw per-game.</p>
   </header>
 
   <div class="controls">
@@ -377,6 +377,15 @@ const THRESHOLDS = {
     '3m': { min: 0, max: 30,  default: 4  },
     '1m': { min: 0, max: 15,  default: 2  },
   },
+};
+
+// Small-sample correction: reference clutch-minute totals for "full participation".
+// Clutch Index is multiplied by min(1, MIN / ref) so a player below the reference
+// gets proportionally dinged, preventing 2-game cameos from outranking 8-game runs.
+// Above the reference, no scaling (full credit).
+const SAMPLE_REFERENCE_MIN = {
+  rs: { '5m': 80, '3m': 40, '1m': 15 },
+  po: { '5m': 25, '3m': 12, '1m': 5  },
 };
 
 // State
@@ -621,8 +630,15 @@ function buildRow(b, a) {
   const multiplier = gp > 0
     ? ((0.8 * l) + (1.25 * w) + (pm / gp)) / gp
     : 0;
-  const clutchIndex = boxPart * multiplier;
-  const clutchIndexPerGame = gp > 0 ? clutchIndex / gp : 0;
+  const clutchIndexRaw = boxPart * multiplier;
+
+  // Small-sample scaling applied ONLY to the main Clutch Index (volume-aware).
+  // Idx/G keeps the raw per-game value (pure efficiency, not volume-discounted).
+  const minutes = num(b.MIN);
+  const refMin = SAMPLE_REFERENCE_MIN[currentPhase][currentWindow];
+  const scaleFactor = Math.min(1, minutes / refMin);
+  const clutchIndex = clutchIndexRaw * scaleFactor;
+  const clutchIndexPerGame = gp > 0 ? clutchIndexRaw / gp : 0;
 
   return {
     PLAYER_ID: b.PLAYER_ID,
